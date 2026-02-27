@@ -42,7 +42,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 const corsOptions = {
-    origin: ["https://eshop-frontend-69ze.vercel.app/"],
+    origin: true,
+    // ["https://eshop-frontend-69ze.vercel.app/"],
     credentials: true,
 };
 app.use(cors(corsOptions));
