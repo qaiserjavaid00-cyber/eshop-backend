@@ -186,14 +186,14 @@ export const createPaymentIntent = asyncHandler(async (req, res) => {
     const amount = cart.totalAfterDiscount || cart.cartTotal;
 
     // 3️⃣ Check for existing unpaid order
-    let order = await Order.findOne({
-        orderdBy: userId,
-        isPaid: false,
-        orderStatus: "Processing", // ✅ ONLY reusable orders
-    });
+    // let order = await Order.findOne({
+    //     orderdBy: userId,
+    //     isPaid: false,
+    //     orderStatus: "Processing", // ✅ ONLY reusable orders
+    // });
 
     // 4️⃣ If no unpaid order, create new
-    if (!order) {
+    // if (!order) {
         order = await Order.create({
             products: cart.products.map(item => ({
                 product: item.product,
@@ -208,7 +208,7 @@ export const createPaymentIntent = asyncHandler(async (req, res) => {
             appliedCoupon: cart.appliedCoupon || null,
             amountPaid: amount,
         });
-    }
+    // }
 
     console.log("ORDER CREATED ===", order);
 
@@ -251,7 +251,7 @@ export const createBuyNowPaymentIntent = asyncHandler(async (req, res) => {
     const product = await Product.findById(productId);
     if (!product) throw new Error("Product not found");
 
-    let price = product.price;
+    let price = product.basePrice;
 
     // 2️⃣ If variant exists
     let variant = null;
