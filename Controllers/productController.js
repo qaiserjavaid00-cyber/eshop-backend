@@ -392,6 +392,11 @@ export const updateProduct = asyncHandler(async (req, res) => {
     });
 });
 
+
+/// @desc   Update product with variants
+// @route   GET /api/products
+// @access  Public
+
 export const getProducts = asyncHandler(async (req, res) => {
     const {
         search,
@@ -666,83 +671,7 @@ export const rateProduct = asyncHandler(async (req, res) => {
 });
 
 
-/////filters 
 
-// routes/filterRoutes.js
-
-// export const getFilters = asyncHandler(async (req, res) => {
-
-//     const variants = await Variant.find({}, "price salePrice saleStart saleEnd isFlashDeal regularSalePrice isOnSale");
-//     // Unique colors and sizes from products
-//     const colors = await Variant.distinct('color');
-//     const sizes = await Variant.distinct('size');
-
-//     // All categories
-//     const categories = await Category.find({}, '_id name');
-//     const subCategories = await Sub.find({}, '_id name parent').populate('parent', '_id name');
-
-//     // All Tags
-//     const productTags = (await Product.distinct("tags")).filter(Boolean);
-//     const variantTags = (await Variant.distinct("tags")).filter(Boolean);
-//     const tags = Array.from(new Set([...productTags, ...variantTags]));
-
-
-//     // Specifications
-//     const productSpecs = await Product.find({}, "specifications").lean();
-//     const variantSpecs = await Variant.find({}, "specifications").lean();
-
-//     const allSpecs = [...productSpecs, ...variantSpecs]
-//         .flatMap(item => item.specifications || [])
-//         .filter(s => s.key && s.value); // remove null/empty
-
-//     // Create a grouped structure: { key1: [value1, value2], key2: [value1, value2], ... }
-//     const specifications = allSpecs.reduce((acc, { key, value }) => {
-//         if (!acc[key]) acc[key] = new Set();
-//         acc[key].add(value);
-//         return acc;
-//     }, {});
-
-//     // Convert Sets to arrays
-//     const specs = {};
-//     for (const key in specifications) {
-//         specs[key] = Array.from(specifications[key]);
-//     }
-
-
-//     // Min and max price
-//     let minPrice = Infinity;
-//     let maxPrice = -Infinity;
-//     const now = new Date();
-
-//     variants.forEach(v => {
-//         let finalPrice = v.price;
-
-//         if (v.isFlashDeal && v.salePrice && v.saleStart && v.saleEnd && now >= v.saleStart && now <= v.saleEnd) {
-//             finalPrice = v.salePrice;
-//         } else if (v.isOnSale && v.regularSalePrice) {
-//             finalPrice = v.regularSalePrice;
-//         }
-
-//         if (finalPrice < minPrice) minPrice = finalPrice;
-//         if (finalPrice > maxPrice) maxPrice = finalPrice;
-//     });
-//     // Fallback if no variants
-//     if (minPrice === Infinity) minPrice = 0;
-//     if (maxPrice === -Infinity) maxPrice = 0;
-
-
-//     res.json({
-//         colors,
-//         sizes,
-//         categories,
-//         subCategories,
-//         priceRange: { minPrice, maxPrice },
-//         tags,
-//         specifications: specs,
-//     });
-// })
-
-// v2
 // GET /api/filters
 export const getFilters = asyncHandler(async (req, res) => {
     const now = new Date();
@@ -767,6 +696,10 @@ export const getFilters = asyncHandler(async (req, res) => {
     const productTags = (await Product.distinct("tags")).filter(Boolean);
     const variantTags = (await Variant.distinct("tags")).filter(Boolean);
     const tags = Array.from(new Set([...productTags, ...variantTags])).sort();
+    // -------------------- BRANDS --------------------
+    const brands = (await Product.distinct("brand"))
+        .filter(b => b && b.trim() !== "")
+        .sort();
 
     // -------------------- SPECIFICATIONS --------------------
     const productSpecs = await Product.find({}, "specifications").lean();
@@ -819,6 +752,7 @@ export const getFilters = asyncHandler(async (req, res) => {
         priceRange: { minPrice, maxPrice },
         tags,
         specifications: specs,
+        brands,
     });
 });
 

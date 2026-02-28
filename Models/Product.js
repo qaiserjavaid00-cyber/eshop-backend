@@ -10,7 +10,7 @@ const productSchema = new mongoose.Schema(
         sub: [
             { type: mongoose.Schema.Types.ObjectId, ref: "Sub" }
         ],
-        brand: { type: String, enum: ["Apple", "Samsung", "Microsoft", "Lenovo", "ASUS", "Hp"] },
+        brand: { type: String, default: "Apple" },
         shipping: { type: String, enum: ["Yes", "No"] },
         ratings: [
             { star: Number, postedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" } },
