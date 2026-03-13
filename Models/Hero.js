@@ -1,17 +1,27 @@
-// models/Hero.js
 import mongoose from "mongoose";
 
 const heroSchema = new mongoose.Schema(
     {
-        title: { type: String, default: "Upgrade Your Tech Today" },
+        title: {
+            type: String,
+            required: true,
+        },
         subtitle: {
             type: String,
-            default:
-                "Discover premium tech products with great deals, dependable delivery, and easy returns.",
+            required: true,
         },
         image: {
             public_id: String,
             url: String,
+        },
+        isActive: {
+            type: Boolean,
+            default: true,
+            index: true,
+        },
+        order: {
+            type: Number,
+            default: 0, // for slider ordering
         },
     },
     { timestamps: true }

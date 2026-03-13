@@ -9,6 +9,7 @@ const generateToken = (res, id) => {
         secure: true,
         sameSite: 'none',
         maxAge: 30 * 24 * 60 * 60 * 1000,
+        // maxAge: 2 * 60 * 60 * 1000, //2hrs
 
     });
 }

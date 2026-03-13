@@ -1,6 +1,6 @@
 // routes/order.js
 import express from "express";
-import { createBuyNowPaymentIntent, createCODOrder, createOrder, createPaymentIntent, getAllOrders, getOrderById, getUserOrders, partialRefundOrder, refundOrder, stripeWebhook, updateOrderStatus } from "../Controllers/orderController.js";
+import { createBuyNowPaymentIntent, createOrder, createPaymentIntent, getAllOrders, getOrderById, getUserOrders, partialRefundOrder, placeCODOrder, refundOrder, stripeWebhook, updateCODStatus, updateOrderStatus } from "../Controllers/orderController.js";
 import { admin, protect } from "../middleware/protect.js";
 
 const orderRouter = express.Router();
@@ -9,7 +9,8 @@ orderRouter.post("/create", protect, createOrder);
 orderRouter.get("/user-orders", protect, getUserOrders);
 orderRouter.get("/all-orders", protect, admin, getAllOrders);
 orderRouter.put("/update-status/:orderId", protect, admin, updateOrderStatus);
-orderRouter.post("/cod", protect, createCODOrder);
+orderRouter.put("/update-cod/:orderId", protect, admin, updateCODStatus);
+orderRouter.post("/cod", protect, placeCODOrder);
 orderRouter.get("/:orderId", getOrderById);
 orderRouter.post("/:id/refund", protect, admin, refundOrder)
 orderRouter.post("/:id/partialRefund", protect, admin, partialRefundOrder)

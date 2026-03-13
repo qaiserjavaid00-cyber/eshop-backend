@@ -50,7 +50,7 @@ const orderSchema = new mongoose.Schema(
             discount: Number,
         },
 
-        paymentIntentId: String, // ✅ needed
+        paymentIntentId: String,
 
         address: String,
 
@@ -63,7 +63,7 @@ const orderSchema = new mongoose.Schema(
         orderStatus: {
             type: String,
             default: "Processing",
-            enum: ["Processing", "Shipped", "Delivered", "Cancelled", "Refund Initiated", "Refunded", "Partially Refunded"],
+            enum: ["Processing", "Shipped", "Delivered", "Cancelled", "Refund Initiated", "Refunded", "Partially Refunded", "Cash on Delivery"],
         },
         amountPaid: Number,
 
@@ -71,8 +71,15 @@ const orderSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        cartTotal: Number,
+        totalAfterDiscount: Number,
 
-        paidAt: Date, // ✅ needed
+        appliedCoupon: {
+            code: String,
+            discount: Number,
+        },
+
+        paidAt: Date,
     },
     { timestamps: true }
 );

@@ -2,8 +2,8 @@
 import multer from "multer";
 import cloudinaryPackage from "cloudinary";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
-import dotenv from "dotenv";
 
+import dotenv from "dotenv";
 dotenv.config();
 
 // ---------------- CLOUDINARY CONFIG ----------------
@@ -36,8 +36,10 @@ const fileFilter = (req, file, cb) => {
     const isVariantImage = /^variantImages_\d+$/.test(fieldname);
 
     const isHeroImage = fieldname === "heroImage";
+    const isProfilePic = fieldname === "profilePic";
     // ❌ Reject anything else
-    if (!isProductImage && !isVariantImage && !isHeroImage) {
+
+    if (!isProductImage && !isVariantImage && !isHeroImage && !isProfilePic) {
         return cb(
             new Error(`Invalid file field: ${fieldname}`),
             false

@@ -18,6 +18,9 @@ import orderRouter from './Routers/orderRouter.js';
 import variantRouter from './Routers/variantRouter.js';
 import statsRouter from './Routers/statsRouter.js';
 import heroRouter from './Routers/heroRouter.js';
+import subscriberRouter from './Routers/subscriberRouter.js';
+import notificationRouter from './Routers/notificationRouter.js';
+import aboutRouter from './Routers/aboutRouter.js';
 
 dotenv.config();
 connectDB();
@@ -43,7 +46,8 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 const corsOptions = {
     origin: true,
-    // ["https://eshop-frontend-69ze.vercel.app/"],
+    // ["http://localhost:5173"],
+    // ["https://eshop-frontend-69ze.vercel.app"],
     credentials: true,
 };
 app.use(cors(corsOptions));
@@ -61,7 +65,9 @@ app.use("/order", orderRouter)
 app.use("/variant", variantRouter)
 app.use("/stats", statsRouter)
 app.use("/hero", heroRouter)
-// app.use("/review", revieouter)
+app.use("/subscribe", subscriberRouter)
+app.use("/notification", notificationRouter)
+app.use("/about", aboutRouter)
 
 app.use(notFound)
 app.use(globalErrhandler)

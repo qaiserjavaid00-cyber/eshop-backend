@@ -194,20 +194,20 @@ export const createPaymentIntent = asyncHandler(async (req, res) => {
 
     // 4️⃣ If no unpaid order, create new
     // if (!order) {
-        order = await Order.create({
-            products: cart.products.map(item => ({
-                product: item.product,
-                variant: item.variant || null,
-                size: item.size || null,
-                color: item.color || null,
-                price: item.price,
-                count: item.count,
-            })),
-            address: JSON.stringify(req.body.shippingAddress || req.user.address || {}),
-            orderdBy: userId,
-            appliedCoupon: cart.appliedCoupon || null,
-            amountPaid: amount,
-        });
+    order = await Order.create({
+        products: cart.products.map(item => ({
+            product: item.product,
+            variant: item.variant || null,
+            size: item.size || null,
+            color: item.color || null,
+            price: item.price,
+            count: item.count,
+        })),
+        address: JSON.stringify(req.body.shippingAddress || req.user.address || {}),
+        orderdBy: userId,
+        appliedCoupon: cart.appliedCoupon || null,
+        amountPaid: amount,
+    });
     // }
 
     console.log("ORDER CREATED ===", order);
@@ -624,7 +624,25 @@ export const getAllOrders = asyncHandler(async (req, res) => {
 
 
 
-// ✅ ADMIN: Update order status
+// update COD
+export const updateCODStatus = asyncHandler(async (req, res) => {
+    const { orderId } = req.params;
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+        res.status(404);
+        throw new Error("Order not found");
+    }
+
+    order.amountPaid = order.totalAfterDiscount || order.cartTotal;
+    order.isPaid = true;
+    order.paidAt = new Date();
+    await order.save();
+    console.log("Order Updated", order)
+    res.json({ message: "Order status updated", order });
+});
+
+///update Order status
 export const updateOrderStatus = asyncHandler(async (req, res) => {
     const { orderId } = req.params;
     const { status } = req.body;
@@ -640,8 +658,6 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
 
     res.json({ message: "Order status updated", order });
 });
-
-
 
 
 export const createCODOrder = asyncHandler(async (req, res) => {
@@ -674,3 +690,113 @@ export const createCODOrder = asyncHandler(async (req, res) => {
 });
 
 
+// controllers/orderController.js
+// @desc    Place Cash on Delivery (COD) Order
+// @route   POST order/cod
+// @access  Private
+
+
+export const placeCODOrder = asyncHandler(async (req, res) => {
+    const userId = req.user._id; // Auth middleware must set req.user
+    const { address, couponCode } = req.body;
+
+    // 1️⃣ Fetch user's cart
+    const cart = await Cart.findOne({ orderdBy: userId });
+    if (!cart || cart.products.length === 0) {
+        res.status(400);
+        throw new Error("Cart is empty");
+    }
+
+    const { products, cartTotal, totalAfterDiscount } = cart;
+    // console.log(cart)
+    // 2️⃣ Validate coupon (if provided)
+    let appliedCoupon = null;
+    if (couponCode) {
+        const coupon = await Coupon.findOne({ code: couponCode.toUpperCase() });
+        if (!coupon) {
+            res.status(400);
+            throw new Error("Invalid coupon code");
+        }
+
+        if (coupon.expiry < new Date()) {
+            res.status(400);
+            throw new Error("Coupon has expired");
+        }
+
+        if (coupon.usedBy.includes(userId)) {
+            res.status(400);
+            throw new Error("Coupon already used by this user");
+        }
+
+        appliedCoupon = {
+            code: coupon.code,
+            discount: coupon.discount,
+        };
+
+        // Mark coupon as used
+        coupon.usedBy.push(userId);
+        await coupon.save();
+    }
+
+    // 3️⃣ Validate stock & deduct
+    for (const item of products) {
+
+        if (item.variant.toString() === item.product.toString()) {
+
+            const product = await Product.findById(item.product);
+            if (!product) throw new Error("Product not found");
+
+            if (product.stock < item.count) {
+                throw new Error(`Not enough stock for product ${product.title}`);
+            }
+
+            product.stock -= item.count;
+            product.sold += item.count;
+            await product.save();
+        }
+        else {
+            const variant = item.variant ? await Variant.findById(item.variant) : null;
+
+            if (!variant) throw new Error("Variant not found");
+
+            if (variant.quantity < item.count) {
+                throw new Error(
+                    `Not enough stock for ${variant.color}-${variant.size}`
+                );
+            }
+
+            variant.quantity -= item.count;
+            variant.sold += item.count;
+            await variant.save();
+
+            await Product.findByIdAndUpdate(item.product, { $inc: { sold: item.count } });
+        }
+
+    }
+
+    // 4️⃣ Create order
+    const order = await Order.create({
+        products: products.map((item) => ({
+            product: item.product,
+            variant: item.variant || null,
+            size: item.size || null,
+            color: item.color || null,
+            price: item.price,
+            count: item.count,
+        })),
+        orderdBy: userId,
+        orderStatus: "Processing",
+        isPaid: false,
+        amountPaid: 0,
+        address: address || "",
+        cartTotal,
+        totalAfterDiscount,
+        appliedCoupon,
+
+    });
+
+    // 5️⃣ Optional: clear cart after order
+    await Cart.findOneAndDelete({ orderdBy: userId });
+
+    res.status(201).json({ message: "COD order placed successfully", order });
+});

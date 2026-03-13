@@ -14,6 +14,7 @@ import Sub from "../Models/Sub.js";
 
 // -------------------- CREATE PRODUCT --------------------
 export const create = asyncHandler(async (req, res) => {
+    // console.log("BODY:", req.body)
     const {
         title,
         description,
@@ -197,10 +198,22 @@ export const getSaleProducts = asyncHandler(async (req, res) => {
 // @route   DELETE /api/categories/:id
 // @access  Private/Admin
 export const deleteProduct = asyncHandler(async (req, res) => {
-    await Product.findByIdAndDelete(req.params.id);
+    const productId = req.params.id;
+
+    // 1️⃣ Delete all variants belonging to this product
+    await Variant.deleteMany({ productId });
+
+    // 2️⃣ Delete the product itself
+    const deletedProduct = await Product.findByIdAndDelete(productId);
+
+    if (!deletedProduct) {
+        res.status(404);
+        throw new Error("Product not found");
+    }
+
     res.json({
         status: "success",
-        message: "Category deleted successfully",
+        message: "Product and all its variants deleted successfully",
     });
 });
 
@@ -393,7 +406,6 @@ export const updateProduct = asyncHandler(async (req, res) => {
 });
 
 
-/// @desc   Update product with variants
 // @route   GET /api/products
 // @access  Public
 
@@ -440,7 +452,10 @@ export const getProducts = asyncHandler(async (req, res) => {
         };
     }
 
-    if (brand) productMatch.brand = brand;
+    if (brand) {
+        const brands = Array.isArray(brand) ? brand : [brand];
+        productMatch.brand = { $in: brands }
+    };
 
     /* -------------------- AGGREGATION PIPELINE -------------------- */
     const pipeline = [
@@ -595,7 +610,13 @@ export const getProducts = asyncHandler(async (req, res) => {
 
 
 export const getProductBySlug = asyncHandler(async (req, res) => {
-    const product = await Product.findOne({ slug: req.params.slug }).populate("category").populate("sub");
+    const product = await Product.findOne({ slug: req.params.slug })
+        .populate("category")
+        .populate("sub")
+        .populate({
+            path: "ratings.postedBy",
+            select: "name",
+        });
     if (!product) {
         res.status(404);
         throw new Error('Product not found');
@@ -611,26 +632,33 @@ export const getProductBySlug = asyncHandler(async (req, res) => {
 
     res.json({
         ...product.toObject(),
-        averageRating: averageRating.toFixed(1), // e.g., "4.3"
+        averageRating: averageRating.toFixed(1),
     });
 
 });
 
 ////featured Products
 
-export const getFeaturedProducts = async (req, res) => {
-    try {
-        const products = await Product.find({ isFeatured: true })
-            .populate("category", "name slug")
-            .sort({ updatedAt: -1 })
-            .limit(10);
+export const getFeaturedProducts = asyncHandler(async (req, res) => {
+    const featuredProducts = await Product.find({ isFeatured: true })
+        .populate("category", "name slug")
+        .populate("variants")
+        .lean(); // use lean for faster queries and plain JS objects
 
-        res.json(products);
-    } catch (err) {
-        res.status(500).json({ message: "Failed to fetch featured products" });
-    }
-};
+    // Add minPrice field
+    const products = featuredProducts.map(p => {
+        let minPrice;
+        if (p.hasVariant && p.variants?.length) {
+            minPrice = Math.min(...p.variants.map(v => v.price));
+        } else {
+            minPrice = p.basePrice ?? 0; // fallback to 0 if no basePrice
+        }
 
+        return { ...p, minPrice };
+    });
+
+    res.json(products);
+});
 
 // @desc    Allow rating only once
 // @route   PUT /api/product/star
@@ -671,6 +699,50 @@ export const rateProduct = asyncHandler(async (req, res) => {
 });
 
 
+export const getHomeRatings = asyncHandler(async (req, res) => {
+    const products = await Product.find({
+        "ratings.0": { $exists: true }, // only products with ratings
+    })
+        .select("title slug images ratings")
+        .populate({
+            path: "ratings.postedBy",
+            select: "name",
+        });
+
+    // ---- Flatten all ratings ----
+    let allRatings = [];
+
+    products.forEach((product) => {
+        product.ratings.forEach((rating) => {
+            if (rating.postedBy) {
+                allRatings.push({
+                    star: rating.star,
+                    user: rating.postedBy,
+                    productTitle: product.title,
+                    productSlug: product.slug,
+                    productImage: product.images[0] || null,
+                });
+            }
+        });
+    });
+
+    // ---- Remove duplicate users ----
+    const uniqueMap = new Map();
+
+    allRatings.forEach((r) => {
+        uniqueMap.set(r.user._id.toString(), r);
+    });
+
+    const uniqueRatings = Array.from(uniqueMap.values());
+
+    // ---- Sort highest rating first (optional)
+    uniqueRatings.sort((a, b) => b.star - a.star);
+
+    // ---- Limit to 8 for homepage
+    const limitedRatings = uniqueRatings.slice(0, 8);
+
+    res.json(limitedRatings);
+});
 
 // GET /api/filters
 export const getFilters = asyncHandler(async (req, res) => {
@@ -683,8 +755,22 @@ export const getFilters = asyncHandler(async (req, res) => {
     );
 
     // Unique colors and sizes (sorted)
-    const colors = (await Variant.distinct('color')).filter(Boolean).sort();
-    const sizes = (await Variant.distinct('size')).filter(Boolean).sort();
+    const normalize = (value) =>
+        value
+            ?.trim()
+            .toLowerCase()
+            .replace(/\b\w/g, c => c.toUpperCase());
+
+    const rawColors = await Variant.distinct("color");
+    const rawSizes = await Variant.distinct("size");
+
+    const colors = Array.from(
+        new Set(rawColors.filter(Boolean).map(normalize))
+    ).sort();
+
+    const sizes = Array.from(
+        new Set(rawSizes.filter(Boolean).map(normalize))
+    ).sort();
 
     // -------------------- CATEGORIES --------------------
     const categories = await Category.find({}, '_id name').sort({ name: 1 });

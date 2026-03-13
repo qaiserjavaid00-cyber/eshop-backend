@@ -85,7 +85,7 @@ export const getRevenueStats = asyncHandler(async (req, res) => {
     });
 });
 
-
+////orderstats
 
 export const getOrderStats = asyncHandler(async (req, res) => {
     const now = new Date();
@@ -130,8 +130,7 @@ export const getOrderStats = asyncHandler(async (req, res) => {
 });
 
 
-//////users 
-// controllers/adminDashboardController.js
+
 
 export const getCustomerStats = asyncHandler(async (req, res) => {
     const now = new Date();
@@ -179,8 +178,7 @@ export const getCustomerStats = asyncHandler(async (req, res) => {
 });
 
 
-////get Top 5 products 
-// controllers/adminDashboardController.js
+////get Top 5 products
 export const getTopProducts = asyncHandler(async (req, res) => {
     // Aggregate total sold per product
     const topProducts = await Variant.aggregate([
@@ -227,7 +225,6 @@ export const getTopProducts = asyncHandler(async (req, res) => {
 
 ////inventory stats 
 
-// controllers/adminDashboardController.js
 
 export const getInventoryStats = asyncHandler(async (req, res) => {
     // Total products
@@ -236,21 +233,112 @@ export const getInventoryStats = asyncHandler(async (req, res) => {
     // Total variants
     const totalVariants = await Variant.countDocuments();
 
-    // Low stock variants (<=5)
-    const lowStockVariants = await Variant.countDocuments({ quantity: { $lte: 5, $gt: 0 } });
+    // Low stock variants (1–5)
+    const lowStockVariants = await Variant.find({
+        quantity: { $lte: 5, $gt: 0 },
+    })
+        .populate("productId", "title") // populate product title only
+        .select("quantity size color");  // select fields you want
 
-    // Out-of-stock variants
-    const outOfStockVariants = await Variant.countDocuments({ quantity: { $lte: 0 } });
+    // Out-of-stock variants (0 or less)
+    const outOfStockVariants = await Variant.find({
+        quantity: { $lte: 0 },
+    })
+        .populate("productId", "title")
+        .select("quantity size color");
+
+    // Map to clean frontend-friendly objects
+    const lowStockProducts = lowStockVariants.map((v) => ({
+        product: v.productId?.title || "Unknown Product",
+        quantity: v.quantity,
+        size: v.size,
+        color: v.color,
+    }));
+
+    const outOfStockProducts = outOfStockVariants.map((v) => ({
+        product: v.productId?.title || "Unknown Product",
+        quantity: v.quantity,
+        size: v.size,
+        color: v.color,
+    }));
 
     res.status(200).json({
         success: true,
         inventory: {
             totalProducts,
             totalVariants,
-            lowStockVariants,
-            outOfStockVariants,
+            lowStockCount: lowStockProducts.length,
+            outOfStockCount: outOfStockProducts.length,
+            lowStockProducts,
+            outOfStockProducts,
         },
     });
 });
 
+/////////CHARTS
 
+export const getRevenueStatsForChart = asyncHandler(async (req, res) => {
+    const now = new Date();
+    const past30Days = new Date();
+    past30Days.setDate(now.getDate() - 29); // include today
+
+    const revenueAgg = await Order.aggregate([
+        {
+            $match: {
+                isPaid: true,
+                orderStatus: { $ne: "Cancelled" },
+                paidAt: { $gte: past30Days, $lte: now },
+            },
+        },
+        {
+            $group: {
+                _id: {
+                    $dateToString: { format: "%Y-%m-%d", date: "$paidAt" },
+                },
+                dailyRevenue: { $sum: "$amountPaid" },
+            },
+        },
+        { $sort: { _id: 1 } }, // sort by date ascending
+    ]);
+
+    // Fill missing dates with 0 revenue
+    const revenueMap = {};
+    revenueAgg.forEach((r) => (revenueMap[r._id] = r.dailyRevenue));
+
+    const result = [];
+    for (let d = new Date(past30Days); d <= now; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().slice(0, 10);
+        result.push({
+            date: dateStr,
+            revenue: revenueMap[dateStr] || 0,
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        revenue: result,
+    });
+});
+
+
+export const getOrderStatsChart = asyncHandler(async (req, res) => {
+    const stats = await Order.aggregate([
+        {
+            $group: {
+                _id: "$orderStatus",
+                count: { $sum: 1 },
+            },
+        },
+    ]);
+
+    // Transform to object for easier frontend use
+    const formattedStats = {};
+    stats.forEach((s) => {
+        formattedStats[s._id] = s.count;
+    });
+
+    res.status(200).json({
+        success: true,
+        ordersByStatus: formattedStats,
+    });
+});

@@ -1,43 +1,62 @@
 import jwt from "jsonwebtoken";
 import User from "../Models/User.js";
+import dotenv from "dotenv";
+dotenv.config();
 
 export const protect = async (req, res, next) => {
-    let token;
-    token = req?.cookies?.token;
-    console.log(token)
-    if (token) {
-        try {
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            console.log(decoded)
-            req.user = await User.findById(decoded?.id).select('-password')
-            console.log(req.user.id)
-            next();
-        } catch (error) {
-            res.status(400);
-            res.json({
-                message: error,
-            });
-        }
+    const token = req?.cookies?.token;
+
+    if (!token) {
+        const error = new Error("Not authorized, no token");
+        error.statusCode = 401;
+        return next(error);
     }
-    else {
-        res.status(400);
-        res.json({
-            message: "invalid token"
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        const user = await User.findById(decoded.id).select("-password");
+
+        if (!user) {
+            res.clearCookie("token", {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite:
+                    process.env.NODE_ENV === "production"
+                        ? "none"
+                        : "strict",
+            });
+
+            const error = new Error("User not found");
+            error.statusCode = 401;
+            return next(error);
+        }
+
+        req.user = user;
+        next();
+
+    } catch (err) {
+        res.clearCookie("token", {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite:
+                process.env.NODE_ENV === "production"
+                    ? "none"
+                    : "strict",
         });
 
+        const error = new Error("Token expired or invalid");
+        error.statusCode = 401;
+        return next(error);
     }
-}
+};
 
 export const admin = (req, res, next) => {
-    if (req.user && req.user.isAdmin) {
-        next();
-    }
-    else {
-        res.status(400);
-        res.json({
-            message: "not an admin"
-        });
-
+    if (!req.user || !req.user.isAdmin) {
+        const error = new Error("Not authorized as admin");
+        error.statusCode = 403;
+        return next(error);
     }
 
-}
+    next();
+};

@@ -4,7 +4,15 @@ const variantSchema = new mongoose.Schema(
     {
         productId: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
         size: { type: String, required: true, trim: true },
-        color: { type: String, required: true, trim: true },
+        // color: { type: String, required: true, trim: true },
+        color: {
+            type: String, required: true, trim: true,
+            set: v =>
+                v
+                    ?.trim()
+                    .toLowerCase()
+                    .replace(/\b\w/g, c => c.toUpperCase())
+        },
         price: { type: Number, required: true },
         quantity: { type: Number, required: true, min: 0 },
         sold: { type: Number, default: 0 },

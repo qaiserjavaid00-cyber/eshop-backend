@@ -9,14 +9,15 @@ export const productBaseSchema = {
     // Arrays coming from FormData (JSON strings)
     sub: z.preprocess(
         val => {
+            if (!val) return [];
+
+            if (Array.isArray(val)) return val;
+
             if (typeof val === "string") {
-                try {
-                    return JSON.parse(val);
-                } catch {
-                    return [];
-                }
+                return [val]; // convert single value to array
             }
-            return val;
+
+            return [];
         },
         z.array(z.string()).optional()
     ),

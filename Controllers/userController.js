@@ -1,10 +1,12 @@
 import asyncHandler from "express-async-handler";
 import jwt from "jsonwebtoken"
 import bcrypt from "bcryptjs";
-import User from '../Models/User.js';
 import generateToken from "../utils/generateToken.js"
+import User from '../Models/User.js';
+import Order from "../Models/Order.js";
 
 import dotenv from "dotenv";
+import mongoose from "mongoose";
 dotenv.config();
 
 export const register = asyncHandler(async (req, res) => {
@@ -97,9 +99,8 @@ export const checkAuth = asyncHandler(async (req, res) => {
     }
 }
 
-
-
 );
+
 
 export const updateShippingAddresctrl = asyncHandler(async (req, res) => {
     const {
@@ -216,4 +217,126 @@ export const removeFromWishlist = asyncHandler(async (req, res) => {
     await user.save();
 
     res.status(200).json({ success: true, wishlist: user.wishlist });
+});
+
+
+export const getUserStats = asyncHandler(async (req, res) => {
+    const userId = new mongoose.Types.ObjectId(req.user._id);
+
+    // 1️⃣ Aggregate order stats
+    const orderStats = await Order.aggregate([
+        { $match: { orderdBy: userId } },
+        {
+            $group: {
+                _id: null,
+                totalOrders: { $sum: 1 },
+                totalSpent: { $sum: { $ifNull: ["$amountPaid", 0] } },
+                deliveredOrders: {
+                    $sum: { $cond: [{ $eq: ["$orderStatus", "Delivered"] }, 1, 0] }
+                },
+                lastOrderDate: { $max: "$createdAt" }
+            }
+        }
+    ]);
+
+    const stats = orderStats[0] || {
+        totalOrders: 0,
+        totalSpent: 0,
+        deliveredOrders: 0,
+        lastOrderDate: null
+    };
+
+    // 2️⃣ Aggregate wishlist count from User
+    const wishlistAgg = await User.aggregate([
+        { $match: { _id: userId } },
+        { $project: { wishlistCount: { $size: { $ifNull: ["$wishlist", []] } } } }
+    ]);
+
+    const wishlistCount = wishlistAgg[0]?.wishlistCount || 0;
+
+    res.json({
+        totalOrders: stats.totalOrders,
+        deliveredOrders: stats.deliveredOrders,
+        totalSpent: stats.totalSpent,
+        wishlistCount,
+        lastOrderDate: stats.lastOrderDate
+    });
+});
+
+
+export const updateProfile = asyncHandler(async (req, res) => {
+
+    const { name, email } = req.body;
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+        res.status(404);
+        throw new Error("User not found");
+    }
+
+    // check if email already exists
+    if (email && email !== user.email) {
+        const emailExists = await User.findOne({ email });
+
+        if (emailExists) {
+            res.status(400);
+            throw new Error("Email already in use");
+        }
+    }
+
+    user.name = name || user.name;
+    user.email = email || user.email;
+
+    const updatedUser = await user.save();
+
+    res.json({
+        status: "success",
+        message: "Profile updated successfully",
+        user: updatedUser,
+    });
+});
+
+export const updateProfilePicture = asyncHandler(async (req, res) => {
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+        res.status(404);
+        throw new Error("User not found");
+    }
+
+    if (!req.file) {
+        res.status(400);
+        throw new Error("No image uploaded");
+    }
+
+    // Cloudinary URL
+    user.profilePic = req.file.path;
+
+    await user.save();
+
+    res.json({
+        status: "success",
+        message: "Profile picture updated successfully",
+        profilePic: user.profilePic,
+    });
+});
+
+
+export const getProfile = asyncHandler(async (req, res) => {
+
+    const user = await User.findById(req.user._id).select("-password");
+
+    if (!user) {
+        res.status(404);
+        throw new Error("User not found");
+    }
+
+    res.status(200).json({
+        status: "success",
+        message: "User profile fetched successfully",
+        user,
+    });
+
 });

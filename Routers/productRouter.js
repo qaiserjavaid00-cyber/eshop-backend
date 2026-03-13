@@ -1,7 +1,7 @@
 import { Router } from "express";
 
 import { admin, protect } from "../middleware/protect.js";
-import { create, deleteProduct, getFeaturedProducts, getFilters, getFlashProducts, getProduct, getProductBySlug, getProducts, getSaleProducts, listProducts, rateProduct, updateProduct, } from "../Controllers/productController.js";
+import { create, deleteProduct, getFeaturedProducts, getFilters, getFlashProducts, getHomeRatings, getProduct, getProductBySlug, getProducts, getSaleProducts, listProducts, rateProduct, updateProduct, } from "../Controllers/productController.js";
 import fileupload from "../db/fileupload.js";
 import { validate } from "../middleware/validate.js";
 import { createProductSchema, updateProductSchema } from "../validators/productSchema.js";
@@ -19,6 +19,7 @@ productRouter.get("/sales", getSaleProducts);
 productRouter.get("/products", getProducts);
 productRouter.get("/product/:id", validate(mongoIdSchema, "params"), getProduct);
 productRouter.get("/:slug", getProductBySlug);
+productRouter.get("/products/ratings", getHomeRatings);
 productRouter.put("/star", protect, rateProduct);
 productRouter.delete("/:id", protect, admin, validate(mongoIdSchema, "params"), deleteProduct);
 productRouter.put("/update/:id", protect, admin, validate(mongoIdSchema, "params"), fileupload.any(), validate(updateProductSchema), updateProduct);
