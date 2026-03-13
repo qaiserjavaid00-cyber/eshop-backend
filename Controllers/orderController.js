@@ -194,7 +194,7 @@ export const createPaymentIntent = asyncHandler(async (req, res) => {
 
     // 4️⃣ If no unpaid order, create new
     // if (!order) {
-    order = await Order.create({
+    const order = await Order.create({
         products: cart.products.map(item => ({
             product: item.product,
             variant: item.variant || null,
